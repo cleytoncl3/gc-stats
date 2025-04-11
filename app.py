@@ -1,18 +1,15 @@
 import streamlit as st
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
 import time
 import random
-import os
 
-# Corrigir path no Streamlit Cloud
-os.environ["PATH"] += os.pathsep + "/usr/lib/chromium-browser/"
- 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
 
-# Fundo estilo Discord
 st.markdown(
     """
     <style>
@@ -34,10 +31,10 @@ st.markdown("Insira o ID do perfil da GamersClub abaixo (ex: `2399445`)")
 
 player_id = st.text_input("ID do Jogador", value="2399445")
 
-# Emojis para zoação
+# Emojis de reação
 emojis = ["♿", "👍", "😂", "💀", "🧠"]
 
-# Reações da zoeira por estatística
+# Reações por stat
 if "reactions_por_stat" not in st.session_state:
     st.session_state.reactions_por_stat = {
         "K/D": 0,
@@ -45,18 +42,23 @@ if "reactions_por_stat" not in st.session_state:
         "Partidas": 0
     }
 
-# Carregar imagem do botão zoeira
-zoeira_img = Image.open("image.png")
+# Imagem zoeira
+try:
+    zoeira_img = Image.open("image.png")
+except:
+    zoeira_img = None
 
 def pegar_estatisticas_gc(player_id):
     try:
         options = Options()
         options.add_argument("--headless")
-        options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.binary_location = "/usr/lib/chromium-browser/chromium-browser"
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-gpu")
 
-        driver = webdriver.Chrome(options=options)
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+
         url = f"https://gamersclub.com.br/player/{player_id}"
         driver.get(url)
         time.sleep(3)
@@ -110,7 +112,8 @@ if st.button("🔍 Buscar estatísticas"):
             with cols[1]:
                 if st.button(f"Zoeira {stat}", key=stat):
                     st.session_state.reactions_por_stat[stat] += 1
-                st.image(zoeira_img, use_container_width=True)
+                if zoeira_img:
+                    st.image(zoeira_img, use_container_width=True)
 
         st.divider()
 
