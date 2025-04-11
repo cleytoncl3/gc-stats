@@ -4,6 +4,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
+
+import os
 import time
 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="wide", page_icon="🎯")
@@ -38,17 +40,22 @@ def buscar_perfil(url):
     try:
         st.info("⏳ Carregando perfil...")
 
-        # Força o uso do ChromeDriver compatível com a versão 120
-        uc.TARGET_VERSION = "120"
+        # Força o uso de uma versão específica do ChromeDriver
+        driver_path = os.path.join(os.getcwd(), "chromedriver")  # Caminho local (ajuste se necessário)
+
         options = uc.ChromeOptions()
         options.add_argument("--headless=new")
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
-        driver = uc.Chrome(options=options)
+
+        driver = uc.Chrome(
+            options=options,
+            version_main=120,  # Especifica o major version
+            driver_executable_path=driver_path  # Aponta pra um driver compatível com Chrome 120
+        )
 
         driver.get(url)
 
-        # Espera até a classe "nickname" aparecer (indicando que a página carregou)
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.CLASS_NAME, "nickname"))
         )
@@ -60,10 +67,6 @@ def buscar_perfil(url):
 
     except Exception as e:
         st.error("❌ Não foi possível carregar o perfil: elemento não encontrado após 20 segundos.")
-        try:
-            st.error(f"⛔ Parte do HTML carregado (para debug):\n{driver.page_source[:1000]}")
-        except:
-            pass
         raise e
 
 def extrair_stats(html):
