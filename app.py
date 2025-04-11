@@ -26,6 +26,10 @@ def install_chromedriver():
         with zipfile.ZipFile(CHROMEDRIVER_ZIP_PATH, "r") as zip_ref:
             zip_ref.extractall(".")
         os.remove(CHROMEDRIVER_ZIP_PATH)
+
+        # Permissão de execução
+        os.chmod(CHROMEDRIVER_BINARY, 0o755)
+
     except Exception as e:
         raise RuntimeError(f"Erro ao baixar o ChromeDriver: {e}")
 
