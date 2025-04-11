@@ -1,17 +1,17 @@
 import streamlit as st
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
-import os
 import time
 
+# Configurações da página
 st.set_page_config(page_title="GC Stats do Vintorez", layout="wide", page_icon="🎯")
 
-# Estilo da HUD (tema escuro tipo Discord)
+# Estilo customizado com fundo tipo Discord
 st.markdown(
     """
     <style>
@@ -19,25 +19,16 @@ st.markdown(
         background-color: #2c2f33;
         color: white;
     }
-    .main {
+    .stApp {
         background-color: #2c2f33;
         color: white;
-    }
-    .stButton>button {
-        background-color: #7289da;
-        color: white;
-        font-weight: bold;
-        border-radius: 10px;
-        padding: 0.5rem 1rem;
-    }
-    .stMetric {
-        background-color: #23272a;
-        border-radius: 12px;
-        padding: 10px;
     }
     .emoji {
         font-size: 1.5rem;
         margin-right: 5px;
+    }
+    .block-container {
+        padding-top: 2rem;
     }
     </style>
     """,
@@ -46,18 +37,20 @@ st.markdown(
 
 st.title("🎯 GC Stats do Vintorez")
 
-url = st.text_input("Cole o link do perfil da GamersClub (ex: https://gamersclub.gg/player/123456)", "")
-
+# Emojis de reação
 REACTIONS = ["♿", "👍", "😂", "💀", "🧠"]
 reaction_counts = {emoji: 0 for emoji in REACTIONS}
+
+# Entrada de link
+url = st.text_input("Cole o link do perfil da GamersClub (ex: https://gamersclub.gg/player/123456)", "")
 
 def buscar_perfil(url):
     if not url.startswith("https://"):
         raise ValueError("URL inválida. Certifique-se de colar o link completo com https://")
 
-    try:
-        st.info("⏳ Carregando perfil...")
+    st.info("⏳ Carregando perfil...")
 
+    try:
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
@@ -91,6 +84,7 @@ def extrair_stats(html):
 
     return nome, valores
 
+# Se URL for informada
 if url:
     try:
         html = buscar_perfil(url)
