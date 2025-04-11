@@ -48,8 +48,13 @@ def get_driver():
 
 def buscar_perfil(link):
     try:
+        link = link.strip()
+        if not link.startswith("http"):
+            raise ValueError("URL inválida. Certifique-se de colar o link completo com https://")
+
         driver = get_driver()
         driver.get(link)
+
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CLASS_NAME, "player-general-info"))
         )
@@ -58,7 +63,7 @@ def buscar_perfil(link):
         return nome
     except Exception as e:
         print(Fore.RED + f"[x] Erro ao carregar perfil: {e}" + Style.RESET_ALL)
-        st.exception(e)  # Exibe o erro no Streamlit também
+        st.exception(e)
         return None
 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
