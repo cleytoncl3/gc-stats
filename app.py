@@ -1,48 +1,29 @@
-import streamlit as st
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
-import time
+import streamlit as st
+import os
 
-# Configurações da página
 st.set_page_config(page_title="GC Stats do Vintorez", layout="wide", page_icon="🎯")
 
-# Estilo customizado com fundo tipo Discord
-st.markdown(
-    """
+# Estilo dark com fundo Discord
+st.markdown("""
     <style>
-    body {
-        background-color: #2c2f33;
-        color: white;
-    }
-    .stApp {
-        background-color: #2c2f33;
-        color: white;
-    }
-    .emoji {
-        font-size: 1.5rem;
-        margin-right: 5px;
-    }
-    .block-container {
-        padding-top: 2rem;
-    }
+    body { background-color: #2c2f33; color: white; }
+    .emoji { font-size: 1.5rem; margin-right: 5px; }
     </style>
-    """,
-    unsafe_allow_html=True
-)
+""", unsafe_allow_html=True)
 
 st.title("🎯 GC Stats do Vintorez")
 
-# Emojis de reação
+url = st.text_input("Cole o link do perfil da GamersClub (ex: https://gamersclub.gg/player/123456)", "")
+
 REACTIONS = ["♿", "👍", "😂", "💀", "🧠"]
 reaction_counts = {emoji: 0 for emoji in REACTIONS}
-
-# Entrada de link
-url = st.text_input("Cole o link do perfil da GamersClub (ex: https://gamersclub.gg/player/123456)", "")
 
 def buscar_perfil(url):
     if not url.startswith("https://"):
@@ -52,36 +33,32 @@ def buscar_perfil(url):
 
     try:
         chrome_options = Options()
-        # chrome_options.add_argument("--headless")  # Descomente depois de testar
+        chrome_options.add_argument("--headless=new")  # Usar nova engine headless
+        chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.binary_location = "/usr/bin/chromium"  # para ambientes como Streamlit Cloud
 
-        driver = webdriver.Chrome(service=Service(), options=chrome_options)
+        service = Service()  # Selenium Manager resolve o ChromeDriver automaticamente
+        driver = webdriver.Chrome(service=service, options=chrome_options)
 
         driver.get(url)
 
-        # Aguarda até 20 segundos pelo elemento com classe "nickname"
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.CLASS_NAME, "nickname"))
         )
 
         html = driver.page_source
         driver.quit()
-
-        # DEBUG: mostra parte do HTML no terminal
-        print(html[:1500])
-
         return html
 
     except Exception as e:
-        # DEBUG extra
         try:
             with open("erro_debug.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-            st.warning("⚠️ Salvamos o HTML em erro_debug.html pra análise.")
         except:
             pass
-
         st.error("❌ Não foi possível carregar o perfil: elemento não encontrado após 20 segundos.")
         raise e
 
@@ -96,7 +73,6 @@ def extrair_stats(html):
 
     return nome, valores
 
-# Se URL for informada
 if url:
     try:
         html = buscar_perfil(url)
