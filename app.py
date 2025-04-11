@@ -52,7 +52,7 @@ def buscar_perfil(url):
 
     try:
         chrome_options = Options()
-        chrome_options.add_argument("--headless")
+        # chrome_options.add_argument("--headless")  # Descomente depois de testar
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
 
@@ -60,6 +60,7 @@ def buscar_perfil(url):
 
         driver.get(url)
 
+        # Aguarda até 20 segundos pelo elemento com classe "nickname"
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.CLASS_NAME, "nickname"))
         )
@@ -67,9 +68,20 @@ def buscar_perfil(url):
         html = driver.page_source
         driver.quit()
 
+        # DEBUG: mostra parte do HTML no terminal
+        print(html[:1500])
+
         return html
 
     except Exception as e:
+        # DEBUG extra
+        try:
+            with open("erro_debug.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            st.warning("⚠️ Salvamos o HTML em erro_debug.html pra análise.")
+        except:
+            pass
+
         st.error("❌ Não foi possível carregar o perfil: elemento não encontrado após 20 segundos.")
         raise e
 
