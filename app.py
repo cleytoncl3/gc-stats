@@ -1,91 +1,113 @@
-import streamlit as st
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-import time
 import os
 import zipfile
 import requests
-import re
-import subprocess
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import WebDriverException
+from bs4 import BeautifulSoup
+import streamlit as st
+from colorama import Fore, Style
 
-CHROMEDRIVER_VERSION = "120.0.6099.71"
-CHROMEDRIVER_URL = f"https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/{CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip"
-CHROMEDRIVER_ZIP_PATH = "chromedriver.zip"
-CHROMEDRIVER_FOLDER = "chromedriver-linux64"
-CHROMEDRIVER_PATH = os.path.abspath("chromedriver")  # Caminho absoluto pro binário final
+CHROMEDRIVER_PATH = "chromedriver"
 
 def install_chromedriver():
-    if os.path.exists(CHROMEDRIVER_PATH):
-        return
     try:
-        r = requests.get(CHROMEDRIVER_URL)
-        r.raise_for_status()
-        with open(CHROMEDRIVER_ZIP_PATH, "wb") as f:
-            f.write(r.content)
-        with zipfile.ZipFile(CHROMEDRIVER_ZIP_PATH, "r") as zip_ref:
-            zip_ref.extractall(".")
+        # Detecta a versão atual do Chromium
+        version_output = os.popen("/usr/bin/chromium --version").read()
+        version_number = version_output.split("Chromium")[1].strip().split('.')[0]
 
-        os.remove(CHROMEDRIVER_ZIP_PATH)
+        # Monta URL correta do ChromeDriver
+        url = f"https://chromedriver.storage.googleapis.com/LATEST_RELEASE_{version_number}"
+        response = requests.get(url)
+        if response.status_code != 200:
+            st.error("Erro ao baixar o ChromeDriver: Versão do ChromeDriver compatível não encontrada")
+            return
 
-        # Caminho do binário dentro da pasta extraída
-        extracted_binary_path = os.path.join(CHROMEDRIVER_FOLDER, "chromedriver")
+        latest_version = response.text.strip()
+        download_url = f"https://chromedriver.storage.googleapis.com/{latest_version}/chromedriver_linux64.zip"
+        zip_response = requests.get(download_url)
+        zip_path = "chromedriver.zip"
 
-        # Move pra raiz do projeto com nome padronizado
-        os.rename(extracted_binary_path, CHROMEDRIVER_PATH)
+        with open(zip_path, "wb") as f:
+            f.write(zip_response.content)
 
-        # Permissão de execução
-        try:
-            os.chmod(CHROMEDRIVER_PATH, 0o755)
-        except:
-            subprocess.call(["chmod", "+x", CHROMEDRIVER_PATH])
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall()
+
+        os.remove(zip_path)
+        os.chmod(CHROMEDRIVER_PATH, 0o755)
+
     except Exception as e:
-        raise RuntimeError(f"Erro ao baixar o ChromeDriver: {e}")
+        st.error(f"Erro ao baixar o ChromeDriver: {e}")
 
 def start_browser():
     install_chromedriver()
     options = Options()
-    options.add_argument("--headless=new")
+    # Flags seguras para headless em servidores
+    options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920x1080")
     options.binary_location = "/usr/bin/chromium"
 
     service = Service(CHROMEDRIVER_PATH)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
-def extrair_stats(url):
+def buscar_perfil_gc(url):
     try:
         driver = start_browser()
-        profile_url = f"https://gamersclub.gg/player/{url}"
-        driver.get(profile_url)
-        time.sleep(5)
+        driver.get(url)
 
-        html = driver.page_source
-        stats = {}
-        padrao = r'{"label":"(.*?)","value":"(.*?)"}'
-        matches = re.findall(padrao, html)
-        for label, value in matches:
-            stats[label] = value
+        st.info("Carregando perfil...")
+
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        nickname = soup.find("h1").text.strip()
+
+        estatisticas = {}
+        for div in soup.find_all("div", class_="player-stats__number"):
+            label = div.find_previous_sibling("div").text.strip()
+            valor = div.text.strip()
+            estatisticas[label] = valor
+
         driver.quit()
-        return stats
+        return nickname, estatisticas
+
+    except WebDriverException as e:
+        st.error(f"Erro ao carregar perfil: {e}")
     except Exception as e:
-        return {"erro": str(e)}
+        st.error(f"Erro inesperado: {e}")
 
-# Interface Streamlit
-st.set_page_config(page_title="GC Stats do Vintorez", layout="centered", page_icon="🎯")
+# --- INTERFACE ---
+st.set_page_config(page_title="GC Stats do Vintorez", page_icon="🎯", layout="centered", initial_sidebar_state="auto")
+st.markdown("""
+    <style>
+        body { background-color: #2c2f33; color: white; }
+        .stApp { background-color: #2c2f33; }
+        .emoji-bar { font-size: 24px; }
+        .stat-card { background-color: #23272a; padding: 16px; border-radius: 12px; margin: 8px 0; }
+    </style>
+""", unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🎯 GC Stats do Vintorez</h1>", unsafe_allow_html=True)
-st.markdown("Cole o link do perfil da **GamersClub**:")
+st.title("🎯 GC Stats do Vintorez")
+st.caption("Zoando os amigos com estatísticas da GamersClub 😎")
 
-url_input = st.text_input("URL do perfil", placeholder="Ex: 2399445")
-if url_input:
-    with st.spinner("Buscando stats..."):
-        stats = extrair_stats(url_input)
-    if "erro" in stats:
-        st.error(f"Erro ao carregar perfil: {stats['erro']}")
-    else:
-        st.success("Stats encontrados!")
+url = st.text_input("Cole o link do perfil da GC:")
+
+if url:
+    resultado = buscar_perfil_gc(url)
+    if resultado:
+        nickname, stats = resultado
+        st.subheader(f"🔍 Estatísticas de {nickname}")
         for k, v in stats.items():
-            st.markdown(f"**{k}:** {v}")
+            st.markdown(f"<div class='stat-card'><strong>{k}:</strong> {v}</div>", unsafe_allow_html=True)
+
+        st.markdown("### Reações anônimas:")
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1: st.button("♿", key="r1")
+        with col2: st.button("👍", key="r2")
+        with col3: st.button("😂", key="r3")
+        with col4: st.button("💀", key="r4")
+        with col5: st.button("🧠", key="r5")
