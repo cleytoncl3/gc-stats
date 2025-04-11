@@ -1,135 +1,74 @@
+import os
+import zipfile
+import requests
+import time
 import streamlit as st
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
-from PIL import Image
-import time
-import random
 
-st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
+# Instala chromedriver da versão compatível com Chromium do ambiente
+def install_chromedriver():
+    url = "https://storage.googleapis.com/chrome-for-testing-public/120.0.6099.224/linux64/chromedriver-linux64.zip"
+    response = requests.get(url)
+    with open("chromedriver.zip", "wb") as f:
+        f.write(response.content)
+    
+    with zipfile.ZipFile("chromedriver.zip", "r") as zip_ref:
+        zip_ref.extractall(".")
+    
+    os.chmod("chromedriver-linux64/chromedriver", 0o755)
+    os.environ["PATH"] += os.pathsep + os.path.abspath("chromedriver-linux64")
 
-st.markdown(
-    """
-    <style>
-    body {
-        background-color: #2c2f33;
-        color: #ffffff;
-    }
-    .stApp {
-        background-color: #2c2f33;
-        color: #ffffff;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# Função para criar o driver com Chromium
+def create_driver():
+    options = Options()
+    options.binary_location = "/usr/bin/chromium"
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
 
-st.title("📊 Estatísticas GamersClub - Zueira Edition")
-st.markdown("Insira o ID do perfil da GamersClub abaixo (ex: `2399445`)")
+    driver = webdriver.Chrome(
+        executable_path="./chromedriver-linux64/chromedriver",
+        options=options
+    )
+    return driver
 
-player_id = st.text_input("ID do Jogador", value="2399445")
-
-# Emojis de reação
-emojis = ["♿", "👍", "😂", "💀", "🧠"]
-
-# Reações por stat
-if "reactions_por_stat" not in st.session_state:
-    st.session_state.reactions_por_stat = {
-        "K/D": 0,
-        "HS %": 0,
-        "Partidas": 0
-    }
-
-# Imagem zoeira
-try:
-    zoeira_img = Image.open("image.png")
-except:
-    zoeira_img = None
-
-def pegar_estatisticas_gc(player_id):
+# Função para buscar dados do perfil
+def buscar_perfil_gc(link_perfil):
+    driver = create_driver()
     try:
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-gpu")
+        driver.get(link_perfil)
+        time.sleep(5)  # Espera a página carregar
 
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
+        # Exemplo: pegando o nome do jogador e KD
+        nome = driver.find_element(By.CSS_SELECTOR, ".name").text
+        kd = driver.find_element(By.XPATH, "//div[contains(text(),'K/D')]/following-sibling::div").text
 
-        url = f"https://gamersclub.com.br/player/{player_id}"
-        driver.get(url)
-        time.sleep(3)
-
-        stats = {}
-
-        try:
-            stats["Nome"] = driver.find_element(By.TAG_NAME, "h1").text.strip()
-        except:
-            stats["Nome"] = "Desconhecido"
-
-        try:
-            stats["Nível"] = driver.find_element(By.CLASS_NAME, "level").text.strip()
-        except:
-            stats["Nível"] = "?"
-
-        try:
-            stats["K/D"] = driver.find_element(By.XPATH, "//span[contains(text(),'K/D')]/following-sibling::strong").text.strip()
-        except:
-            stats["K/D"] = "?"
-
-        try:
-            stats["HS %"] = driver.find_element(By.XPATH, "//span[contains(text(),'HS')]/following-sibling::strong").text.strip()
-        except:
-            stats["HS %"] = "?"
-
-        try:
-            stats["Partidas"] = driver.find_element(By.XPATH, "//span[contains(text(),'Partidas')]/following-sibling::strong").text.strip()
-        except:
-            stats["Partidas"] = "?"
-
-        driver.quit()
-        return stats
+        return {
+            "nome": nome,
+            "kd": kd
+        }
     except Exception as e:
         return f"Erro ao carregar perfil: {e}"
+    finally:
+        driver.quit()
 
-if st.button("🔍 Buscar estatísticas"):
-    stats = pegar_estatisticas_gc(player_id)
+# Inicializa chromedriver no boot do app
+install_chromedriver()
 
-    if isinstance(stats, str):
-        st.error(stats)
-    else:
-        st.markdown(f"## 👤 {stats['Nome']}")
-        st.markdown(f"**Nível:** {stats['Nível']}")
-        st.divider()
+# Streamlit UI
+st.set_page_config(page_title="GC Stats do Vintorez", page_icon="🎮", layout="centered", initial_sidebar_state="collapsed")
+st.markdown("<h1 style='text-align: center;'>GC Stats do Vintorez</h1>", unsafe_allow_html=True)
 
-        for stat in ["K/D", "HS %", "Partidas"]:
-            cols = st.columns([3, 1])
-            with cols[0]:
-                st.markdown(f"**{stat}:** {stats[stat]}")
-            with cols[1]:
-                if st.button(f"Zoeira {stat}", key=stat):
-                    st.session_state.reactions_por_stat[stat] += 1
-                if zoeira_img:
-                    st.image(zoeira_img, use_container_width=True)
+link = st.text_input("Link do perfil da GamersClub:")
 
-        st.divider()
-
-        titulos_zoeira = [
-            "Medidor de vergonha alheia",
-            "Galera tá reagindo assim 👇",
-            "Termômetro da humilhação",
-            "Quantas vezes ele foi ♿ hoje?",
-            "Análise técnica dos crimes cometidos nas partidas",
-            "As estatísticas não mentem… mas doem",
-            "hoje ele ta level guanta?",
-            "ele ta bem fisicamente?"
-        ]
-
-        titulo_aleatorio = random.choice(titulos_zoeira)
-        st.markdown(f"### {titulo_aleatorio}")
-
-        for stat, count in st.session_state.reactions_por_stat.items():
-            st.markdown(f"**{stat}**: {count} zoeiras")
+if link:
+    with st.spinner("Buscando perfil..."):
+        resultado = buscar_perfil_gc(link)
+        if isinstance(resultado, dict):
+            st.success("Perfil carregado com sucesso!")
+            st.markdown(f"**Nome:** {resultado['nome']}")
+            st.markdown(f"**K/D:** {resultado['kd']}")
+        else:
+            st.error(resultado)
