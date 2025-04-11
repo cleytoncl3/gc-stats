@@ -11,32 +11,54 @@ from bs4 import BeautifulSoup
 
 def install_chromedriver():
     try:
-        # Descobre a versão do Chromium instalada
+        # Pega a versão completa do Chromium instalado
         version_output = subprocess.check_output(["chromium", "--version"]).decode("utf-8")
-        version_number = version_output.strip().split(" ")[1].split(".")[0]
+        full_version = version_output.strip().split(" ")[1]  # Ex: 120.0.6099.224
 
-        # Monta URL do ChromeDriver correspondente
-        response = requests.get(f"https://chromedriver.storage.googleapis.com/LATEST_RELEASE_{version_number}")
-        driver_version = response.text.strip()
-        zip_url = f"https://chromedriver.storage.googleapis.com/{driver_version}/chromedriver_linux64.zip"
+        # Busca a versão compatível exata do ChromeDriver
+        response = requests.get(f"https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json")
+        data = response.json()
 
-        # Faz o download
+        if full_version.split('.')[0] not in data['channels']['Stable']['version']:
+            raise Exception("Versão do ChromeDriver compatível não encontrada")
+
+        stable_data = data['channels']['Stable']
+        driver_version = stable_data["version"]
+        download_info = next(
+            (item for item in stable_data["downloads"]["chromedriver"] if item["platform"] == "linux64"),
+            None
+        )
+
+        if not download_info:
+            raise Exception("Download para Linux não encontrado.")
+
+        zip_url = download_info["url"]
+
+        # Baixa o ZIP
         zip_path = "chromedriver.zip"
         with requests.get(zip_url, stream=True) as r:
             r.raise_for_status()
             with open(zip_path, "wb") as f:
                 shutil.copyfileobj(r.raw, f)
 
-        # Verifica se é um ZIP válido antes de extrair
         if not zipfile.is_zipfile(zip_path):
             raise Exception("Erro ao baixar o ChromeDriver. Arquivo não é um ZIP válido.")
 
-        # Extrai
+        # Extrai e renomeia o binário
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall()
-
         os.remove(zip_path)
-        os.chmod("chromedriver", 0o755)
+
+        # Mover o chromedriver certo
+        for root, dirs, files in os.walk("."):
+            for file in files:
+                if file == "chromedriver":
+                    src = os.path.join(root, file)
+                    shutil.move(src, "./chromedriver")
+                    os.chmod("./chromedriver", 0o755)
+                    return
+
+        raise Exception("ChromeDriver não encontrado após extração.")
 
     except Exception as e:
         raise RuntimeError(f"Erro ao baixar o ChromeDriver: {e}")
