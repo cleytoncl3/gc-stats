@@ -8,7 +8,6 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -17,17 +16,14 @@ CHROMEDRIVER_URL = f"https://storage.googleapis.com/chrome-for-testing-public/{C
 
 def install_chromedriver():
     try:
-        # Baixa o zip
         response = requests.get(CHROMEDRIVER_URL)
         response.raise_for_status()
         with open("chromedriver.zip", "wb") as f:
             f.write(response.content)
 
-        # Extrai o executável
         with zipfile.ZipFile("chromedriver.zip", "r") as zip_ref:
             zip_ref.extractall()
 
-        # Move para o nome esperado
         os.rename("chromedriver-linux64/chromedriver", "chromedriver")
         os.chmod("chromedriver", 0o755)
         print(Fore.GREEN + "[✓] ChromeDriver instalado com sucesso." + Style.RESET_ALL)
@@ -62,6 +58,7 @@ def buscar_perfil(link):
         return nome
     except Exception as e:
         print(Fore.RED + f"[x] Erro ao carregar perfil: {e}" + Style.RESET_ALL)
+        st.exception(e)  # Exibe o erro no Streamlit também
         return None
 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
