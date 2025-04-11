@@ -6,3 +6,4 @@ libfontconfig1
 libxss1
 libappindicator3-1
 libasound2
+unzip
