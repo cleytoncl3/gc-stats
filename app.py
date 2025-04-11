@@ -13,11 +13,11 @@ import subprocess
 CHROMEDRIVER_VERSION = "120.0.6099.71"
 CHROMEDRIVER_URL = f"https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/{CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip"
 CHROMEDRIVER_ZIP_PATH = "chromedriver.zip"
-CHROMEDRIVER_EXTRACTED_FOLDER = "chromedriver-linux64"
-CHROMEDRIVER_BINARY = "chromedriver"  # Agora fica direto na raiz
+CHROMEDRIVER_FOLDER = "chromedriver-linux64"
+CHROMEDRIVER_PATH = os.path.abspath("chromedriver")  # Caminho absoluto pro binário final
 
 def install_chromedriver():
-    if os.path.exists(CHROMEDRIVER_BINARY):
+    if os.path.exists(CHROMEDRIVER_PATH):
         return
     try:
         r = requests.get(CHROMEDRIVER_URL)
@@ -26,18 +26,20 @@ def install_chromedriver():
             f.write(r.content)
         with zipfile.ZipFile(CHROMEDRIVER_ZIP_PATH, "r") as zip_ref:
             zip_ref.extractall(".")
+
         os.remove(CHROMEDRIVER_ZIP_PATH)
 
-        # Mover o binário da pasta para a raiz do projeto
-        original_path = os.path.join(CHROMEDRIVER_EXTRACTED_FOLDER, "chromedriver")
-        os.rename(original_path, CHROMEDRIVER_BINARY)
+        # Caminho do binário dentro da pasta extraída
+        extracted_binary_path = os.path.join(CHROMEDRIVER_FOLDER, "chromedriver")
 
-        # Tentar dar permissão de execução
+        # Move pra raiz do projeto com nome padronizado
+        os.rename(extracted_binary_path, CHROMEDRIVER_PATH)
+
+        # Permissão de execução
         try:
-            os.chmod(CHROMEDRIVER_BINARY, 0o755)
+            os.chmod(CHROMEDRIVER_PATH, 0o755)
         except:
-            subprocess.call(["chmod", "+x", CHROMEDRIVER_BINARY])
-
+            subprocess.call(["chmod", "+x", CHROMEDRIVER_PATH])
     except Exception as e:
         raise RuntimeError(f"Erro ao baixar o ChromeDriver: {e}")
 
@@ -49,7 +51,7 @@ def start_browser():
     options.add_argument("--no-sandbox")
     options.binary_location = "/usr/bin/chromium"
 
-    service = Service(CHROMEDRIVER_BINARY)
+    service = Service(CHROMEDRIVER_PATH)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
