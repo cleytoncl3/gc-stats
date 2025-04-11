@@ -1,64 +1,104 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
+import re
+import random
 
-# Emojis disponíveis para reações
-emojis = ["♿", "😂", "💀", "👍", "🧠"]
-reactions = {emoji: 0 for emoji in emojis}  # contador de reações
+st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
 
-# Aplica o estilo visual do Discord
-st.markdown("""
+# Fundo no estilo Discord
+st.markdown(
+    """
     <style>
+    body {
+        background-color: #2c2f33;
+        color: #ffffff;
+    }
     .stApp {
-        background-color: #2C2F33;
-        color: white;
+        background-color: #2c2f33;
+        color: #ffffff;
     }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
-# Título
-st.title("📊 Estatísticas GC - Zoação Mode 😎")
+st.title("📊 Estatísticas GamersClub - Zueira Edition")
+st.markdown("Insira o ID do perfil da GamersClub abaixo (ex: `2399445`)")
 
-# Perfil de exemplo (do seu amigo)
-player_url = "https://gamersclub.com.br/player/2399445"
+# Entrada do ID do jogador
+player_id = st.text_input("ID do Jogador", value="2399445")
 
-# Função para extrair nome e stats
-def pegar_estatisticas_gc(url):
+# Emojis para zoação
+emojis = ["♿", "👍", "😂", "💀", "🧠"]
+
+# Carregando reações armazenadas na sessão
+if "reactions" not in st.session_state:
+    st.session_state.reactions = {emoji: 0 for emoji in emojis}
+
+def pegar_estatisticas_gc(player_id):
+    url = f"https://gamersclub.com.br/player/{player_id}"
     res = requests.get(url)
     soup = BeautifulSoup(res.text, 'html.parser')
 
-    nome = soup.find("h1").text.strip() if soup.find("h1") else "Desconhecido"
-    stats = soup.find_all("div", class_="general-stats__value")
+    stats = {}
 
-    try:
-        kd = stats[0].text.strip()
-        hs = stats[1].text.strip()
-        win_rate = stats[2].text.strip()
-    except:
-        kd = hs = win_rate = "?"
+    # Nome do jogador
+    nome_tag = soup.find("h1")
+    stats["Nome"] = nome_tag.text.strip() if nome_tag else "Desconhecido"
 
-    return nome, kd, hs, win_rate
+    # Nível
+    nivel_tag = soup.find("div", {"class": "level"})
+    stats["Nível"] = nivel_tag.text.strip() if nivel_tag else "?"
 
-# Pegando dados reais do site
-nome, kd, hs, win_rate = pegar_estatisticas_gc(player_url)
+    # K/D
+    kd_match = re.search(r"K/D</span>\s*<strong[^>]*>([\d.]+)</strong>", res.text)
+    stats["K/D"] = kd_match.group(1) if kd_match else "?"
 
-st.subheader(f"👤 Jogador: {nome}")
+    # Headshot %
+    hs_match = re.search(r"HS</span>\s*<strong[^>]*>([\d.]+)%</strong>", res.text)
+    stats["HS %"] = hs_match.group(1) + "%" if hs_match else "?"
 
-# Mostrando estatísticas
-st.write(f"**K/D:** {kd}")
-st.write(f"**Headshot %:** {hs}")
-st.write(f"**Winrate:** {win_rate}")
+    # Total de partidas
+    partidas_match = re.search(r"Partidas</span>\s*<strong[^>]*>([\d.]+)</strong>", res.text)
+    stats["Partidas"] = partidas_match.group(1) if partidas_match else "?"
 
-st.divider()
-st.markdown("### Reações da galera (anônimas):")
+    return stats
 
-# Mostrar botões de reação
-cols = st.columns(len(emojis))
-for i, emoji in enumerate(emojis):
-    if cols[i].button(emoji):
-        reactions[emoji] += 1
+if st.button("🔍 Buscar estatísticas"):
+    stats = pegar_estatisticas_gc(player_id)
+    st.markdown(f"## 👤 {stats['Nome']}")
+    st.markdown(f"**Nível:** {stats['Nível']}")
+    st.markdown(f"**K/D:** {stats['K/D']}")
+    st.markdown(f"**HS %:** {stats['HS %']}")
+    st.markdown(f"**Partidas:** {stats['Partidas']}")
 
-# Mostrar emojis acumulando (zoação)
-st.markdown("### Reações acumuladas:")
-for emoji in emojis:
-    st.markdown(f"**{emoji}** " + (emoji + " ") * reactions[emoji])
+    st.divider()
+
+    # Reações (Zoação)
+    st.markdown("### Clique em uma reação para zoar 👇")
+    cols = st.columns(len(emojis))
+    for i, emoji in enumerate(emojis):
+        if cols[i].button(emoji):
+            st.session_state.reactions[emoji] += 1
+
+    st.divider()
+
+    # Título aleatório zoeiro
+    titulos_zoeira = [
+        "Medidor de vergonha alheia",
+        "Galera tá reagindo assim 👇",
+        "Termômetro da humilhação",
+        "Quantas vezes ele foi ♿ hoje?",
+        "Análise técnica dos crimes cometidos nas partidas",
+        "As estatísticas não mentem… mas doem",
+        "hoje ele ta level guanta?",
+        "ele ta bem fisicamente?"
+    ]
+
+    titulo_aleatorio = random.choice(titulos_zoeira)
+    st.markdown(f"### {titulo_aleatorio}")
+
+    # Mostrar emojis acumulando
+    for emoji in emojis:
+        st.markdown(f"**{emoji}** " + (emoji + " ") * st.session_state.reactions[emoji])
