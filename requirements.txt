@@ -2,5 +2,3 @@ streamlit
 selenium
 webdriver-manager
 pillow
-chromium
-chromium-chromedriver
