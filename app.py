@@ -8,12 +8,13 @@ import os
 import zipfile
 import requests
 import re
+import subprocess
 
 CHROMEDRIVER_VERSION = "120.0.6099.71"
 CHROMEDRIVER_URL = f"https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/{CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip"
 CHROMEDRIVER_ZIP_PATH = "chromedriver.zip"
 CHROMEDRIVER_EXTRACTED_FOLDER = "chromedriver-linux64"
-CHROMEDRIVER_BINARY = os.path.join(CHROMEDRIVER_EXTRACTED_FOLDER, "chromedriver")
+CHROMEDRIVER_BINARY = "chromedriver"  # Agora fica direto na raiz
 
 def install_chromedriver():
     if os.path.exists(CHROMEDRIVER_BINARY):
@@ -27,8 +28,15 @@ def install_chromedriver():
             zip_ref.extractall(".")
         os.remove(CHROMEDRIVER_ZIP_PATH)
 
-        # Permissão de execução
-        os.chmod(CHROMEDRIVER_BINARY, 0o755)
+        # Mover o binário da pasta para a raiz do projeto
+        original_path = os.path.join(CHROMEDRIVER_EXTRACTED_FOLDER, "chromedriver")
+        os.rename(original_path, CHROMEDRIVER_BINARY)
+
+        # Tentar dar permissão de execução
+        try:
+            os.chmod(CHROMEDRIVER_BINARY, 0o755)
+        except:
+            subprocess.call(["chmod", "+x", CHROMEDRIVER_BINARY])
 
     except Exception as e:
         raise RuntimeError(f"Erro ao baixar o ChromeDriver: {e}")
