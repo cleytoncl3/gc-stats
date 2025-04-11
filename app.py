@@ -1,21 +1,34 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+import streamlit as st
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
-import streamlit as st
 import os
+import webbrowser
 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="wide", page_icon="🎯")
 
-st.markdown("""
+# Estilo escuro com vibe Discord
+st.markdown(
+    """
     <style>
-    body { background-color: #2c2f33; color: white; }
-    .emoji { font-size: 1.5rem; margin-right: 5px; }
+    body {
+        background-color: #2c2f33;
+        color: white;
+    }
+    .emoji {
+        font-size: 1.5rem;
+        margin-right: 5px;
+    }
+    .stApp {
+        background-color: #2c2f33;
+        color: white;
+    }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
 st.title("🎯 GC Stats do Vintorez")
 
@@ -28,54 +41,45 @@ def buscar_perfil(url):
     if not url.startswith("https://"):
         raise ValueError("URL inválida. Certifique-se de colar o link completo com https://")
 
-    st.info("⏳ Carregando perfil...")
-
     try:
-        chrome_options = Options()
-        # ⚠️ NÃO usar headless aqui pra evitar erros com Cloudflare/JS
-        chrome_options.add_argument("--start-maximized")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
+        st.info("⏳ Carregando perfil...")
 
-        # 🚨 Corrigir caminho do Chrome se necessário
-        chrome_path = "/usr/bin/google-chrome"
-        if not os.path.exists(chrome_path):
-            chrome_path = "/usr/bin/chromium"  # Alternativa
-        chrome_options.binary_location = chrome_path
+        options = uc.ChromeOptions()
+        options.add_argument("--headless=new")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
 
-        driver = webdriver.Chrome(service=Service(), options=chrome_options)
+        driver = uc.Chrome(options=options)
         driver.get(url)
 
         WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
+            EC.presence_of_element_located((By.CLASS_NAME, "nickname"))
         )
 
         html = driver.page_source
-        with open("perfil_debug.html", "w", encoding="utf-8") as f:
+        driver.quit()
+
+        # Salvar HTML localmente
+        debug_path = os.path.abspath("perfil_debug.html")
+        with open(debug_path, "w", encoding="utf-8") as f:
             f.write(html)
 
-        driver.quit()
+        # Exibir caminho no Streamlit
+        st.info(f"📄 HTML salvo em: `{debug_path}`")
+
+        # Abrir automaticamente no navegador padrão
+        webbrowser.open(f"file://{debug_path}")
+
         return html
 
     except Exception as e:
-        # Salva o HTML mesmo se der erro
-        try:
-            html = driver.page_source
-            with open("perfil_debug.html", "w", encoding="utf-8") as f:
-                f.write(html)
-        except:
-            pass
-        st.error("❌ Não foi possível carregar o perfil.")
+        st.error("❌ Não foi possível carregar o perfil: elemento não encontrado após 20 segundos.")
         raise e
 
 def extrair_stats(html):
     soup = BeautifulSoup(html, "html.parser")
 
     nickname = soup.find("h1", class_="nickname")
-    if not nickname:
-        nickname = soup.find("div", string=lambda t: t and "Perfil de" in t)
-
     nome = nickname.text.strip() if nickname else "Desconhecido"
 
     stats = soup.find_all("div", class_="player-stats__value")
@@ -109,4 +113,3 @@ if url:
 
     except Exception as e:
         st.error(f"Erro inesperado: {e}")
-        st.warning("💡 Verifique o arquivo `perfil_debug.html` salvo no seu diretório.")
