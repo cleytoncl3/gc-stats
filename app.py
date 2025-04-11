@@ -10,13 +10,12 @@ st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
 st.markdown(
     """
     <style>
-    body {
-        background-color: #2c2f33;
-        color: #ffffff;
-    }
     .stApp {
         background-color: #2c2f33;
         color: #ffffff;
+    }
+    h1, h2, h3, h4, h5, h6, p, div, span {
+        color: #ffffff !important;
     }
     </style>
     """,
@@ -37,68 +36,79 @@ if "reactions" not in st.session_state:
     st.session_state.reactions = {emoji: 0 for emoji in emojis}
 
 def pegar_estatisticas_gc(player_id):
-    url = f"https://gamersclub.com.br/player/{player_id}"
-    res = requests.get(url)
-    soup = BeautifulSoup(res.text, 'html.parser')
+    try:
+        url = f"https://gamersclub.com.br/player/{player_id}"
+        res = requests.get(url, timeout=10)
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, 'html.parser')
 
-    stats = {}
+        stats = {}
 
-    # Nome do jogador
-    nome_tag = soup.find("h1")
-    stats["Nome"] = nome_tag.text.strip() if nome_tag else "Desconhecido"
+        # Nome do jogador
+        nome_tag = soup.find("h1")
+        stats["Nome"] = nome_tag.text.strip() if nome_tag else "Desconhecido"
 
-    # Nível
-    nivel_tag = soup.find("div", {"class": "level"})
-    stats["Nível"] = nivel_tag.text.strip() if nivel_tag else "?"
+        # Nível
+        nivel_tag = soup.find("div", {"class": "level"})
+        stats["Nível"] = nivel_tag.text.strip() if nivel_tag else "?"
 
-    # K/D
-    kd_match = re.search(r"K/D</span>\s*<strong[^>]*>([\d.]+)</strong>", res.text)
-    stats["K/D"] = kd_match.group(1) if kd_match else "?"
+        # K/D
+        kd_match = re.search(r"K/D</span>\s*<strong[^>]*>([\d.]+)</strong>", res.text)
+        stats["K/D"] = kd_match.group(1) if kd_match else "?"
 
-    # Headshot %
-    hs_match = re.search(r"HS</span>\s*<strong[^>]*>([\d.]+)%</strong>", res.text)
-    stats["HS %"] = hs_match.group(1) + "%" if hs_match else "?"
+        # Headshot %
+        hs_match = re.search(r"HS</span>\s*<strong[^>]*>([\d.]+)%</strong>", res.text)
+        stats["HS %"] = hs_match.group(1) + "%" if hs_match else "?"
 
-    # Total de partidas
-    partidas_match = re.search(r"Partidas</span>\s*<strong[^>]*>([\d.]+)</strong>", res.text)
-    stats["Partidas"] = partidas_match.group(1) if partidas_match else "?"
+        # Total de partidas
+        partidas_match = re.search(r"Partidas</span>\s*<strong[^>]*>([\d.]+)</strong>", res.text)
+        stats["Partidas"] = partidas_match.group(1) if partidas_match else "?"
 
-    return stats
+        return stats
 
+    except Exception as e:
+        st.error("❌ Erro ao buscar os dados. Verifique o ID ou tente novamente mais tarde.")
+        st.exception(e)
+        return None
+
+# Quando clicar no botão
 if st.button("🔍 Buscar estatísticas"):
-    stats = pegar_estatisticas_gc(player_id)
-    st.markdown(f"## 👤 {stats['Nome']}")
-    st.markdown(f"**Nível:** {stats['Nível']}")
-    st.markdown(f"**K/D:** {stats['K/D']}")
-    st.markdown(f"**HS %:** {stats['HS %']}")
-    st.markdown(f"**Partidas:** {stats['Partidas']}")
+    with st.spinner("Buscando dados..."):
+        stats = pegar_estatisticas_gc(player_id)
 
-    st.divider()
+    if stats:
+        st.markdown(f"## 👤 {stats['Nome']}")
+        st.markdown(f"**Nível:** {stats['Nível']}")
+        st.markdown(f"**K/D:** {stats['K/D']}")
+        st.markdown(f"**HS %:** {stats['HS %']}")
+        st.markdown(f"**Partidas:** {stats['Partidas']}")
 
-    # Reações (Zoação)
-    st.markdown("### Clique em uma reação para zoar 👇")
-    cols = st.columns(len(emojis))
-    for i, emoji in enumerate(emojis):
-        if cols[i].button(emoji):
-            st.session_state.reactions[emoji] += 1
+        st.divider()
 
-    st.divider()
+        # Reações (Zoação)
+        st.markdown("### Clique em uma reação para zoar 👇")
+        cols = st.columns(len(emojis))
+        for i, emoji in enumerate(emojis):
+            if cols[i].button(emoji):
+                st.session_state.reactions[emoji] += 1
 
-    # Título aleatório zoeiro
-    titulos_zoeira = [
-        "Medidor de vergonha alheia",
-        "Galera tá reagindo assim 👇",
-        "Termômetro da humilhação",
-        "Quantas vezes ele foi ♿ hoje?",
-        "Análise técnica dos crimes cometidos nas partidas",
-        "As estatísticas não mentem… mas doem",
-        "hoje ele ta level guanta?",
-        "ele ta bem fisicamente?"
-    ]
+        st.divider()
 
-    titulo_aleatorio = random.choice(titulos_zoeira)
-    st.markdown(f"### {titulo_aleatorio}")
+        # Título aleatório zoeiro
+        titulos_zoeira = [
+            "Medidor de vergonha alheia",
+            "Galera tá reagindo assim 👇",
+            "Termômetro da humilhação",
+            "Quantas vezes ele foi ♿ hoje?",
+            "Análise técnica dos crimes cometidos nas partidas",
+            "As estatísticas não mentem… mas doem",
+            "hoje ele ta level guanta?",
+            "ele ta bem fisicamente?"
+        ]
+        titulo_aleatorio = random.choice(titulos_zoeira)
+        st.markdown(f"### {titulo_aleatorio}")
 
-    # Mostrar emojis acumulando
-    for emoji in emojis:
-        st.markdown(f"**{emoji}** " + (emoji + " ") * st.session_state.reactions[emoji])
+        # Mostrar emojis acumulando
+        for emoji in emojis:
+            st.markdown(f"**{emoji}** " + (emoji + " ") * st.session_state.reactions[emoji])
+            
