@@ -1,7 +1,9 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
+import time
 import random
 from PIL import Image
 from pathlib import Path
@@ -45,44 +47,59 @@ if "reactions_por_stat" not in st.session_state:
 image_path = Path(__file__).parent / "image.png"
 zoeira_img = Image.open(image_path)
 
-def pegar_estatisticas_gc(player_id):
-    url = f"https://gamersclub.com.br/player/{player_id}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+def pegar_estatisticas_gc_com_selenium(player_id):
+    stats = {
+        "Nome": "Desconhecido",
+        "Nível": "?",
+        "K/D": "?",
+        "HS %": "?",
+        "Partidas": "?"
     }
-    res = requests.get(url, headers=headers)
 
-    if res.status_code != 200:
-        return {
-            "Nome": "Erro ao acessar perfil",
-            "Nível": "?",
-            "K/D": "?",
-            "HS %": "?",
-            "Partidas": "?"
-        }
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920x1080")
+    options.add_argument("--no-sandbox")
 
-    soup = BeautifulSoup(res.text, 'html.parser')
+    try:
+        driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+        url = f"https://gamersclub.com.br/player/{player_id}"
+        driver.get(url)
+        time.sleep(3)  # tempo para carregar
 
-    stats = {}
-    nome_tag = soup.find("h1")
-    stats["Nome"] = nome_tag.text.strip() if nome_tag else "Desconhecido"
+        # Nome
+        try:
+            nome = driver.find_element(By.TAG_NAME, "h1").text.strip()
+            stats["Nome"] = nome
+        except:
+            pass
 
-    nivel_tag = soup.find("div", {"class": "level"})
-    stats["Nível"] = nivel_tag.text.strip() if nivel_tag else "?"
+        # Nível
+        try:
+            nivel = driver.find_element(By.CLASS_NAME, "level").text.strip()
+            stats["Nível"] = nivel
+        except:
+            pass
 
-    kd_match = re.search(r"K/D</span>\s*<strong[^>]*>([\d.]+)</strong>", res.text)
-    stats["K/D"] = kd_match.group(1) if kd_match else "?"
+        # Estatísticas
+        try:
+            cards = driver.find_elements(By.CLASS_NAME, "statistics-card__value")
+            if len(cards) >= 3:
+                stats["K/D"] = cards[0].text.strip()
+                stats["HS %"] = cards[1].text.strip()
+                stats["Partidas"] = cards[2].text.strip()
+        except:
+            pass
 
-    hs_match = re.search(r"HS</span>\s*<strong[^>]*>([\d.]+)%</strong>", res.text)
-    stats["HS %"] = hs_match.group(1) + "%" if hs_match else "?"
-
-    partidas_match = re.search(r"Partidas</span>\s*<strong[^>]*>([\d.]+)</strong>", res.text)
-    stats["Partidas"] = partidas_match.group(1) if partidas_match else "?"
+        driver.quit()
+    except Exception as e:
+        st.error(f"Erro ao carregar perfil: {e}")
 
     return stats
 
 if st.button("🔍 Buscar estatísticas"):
-    stats = pegar_estatisticas_gc(player_id)
+    stats = pegar_estatisticas_gc_com_selenium(player_id)
 
     st.markdown(f"## 👤 {stats['Nome']}")
     st.markdown(f"**Nível:** {stats['Nível']}")
@@ -100,7 +117,6 @@ if st.button("🔍 Buscar estatísticas"):
 
     st.divider()
 
-    # Título aleatório zoeiro
     titulos_zoeira = [
         "Medidor de vergonha alheia",
         "Galera tá reagindo assim 👇",
@@ -115,6 +131,5 @@ if st.button("🔍 Buscar estatísticas"):
     titulo_aleatorio = random.choice(titulos_zoeira)
     st.markdown(f"### {titulo_aleatorio}")
 
-    # Mostrar contagem de zoeiras por stat
     for stat, count in st.session_state.reactions_por_stat.items():
         st.markdown(f"**{stat}**: {count} zoeiras")
