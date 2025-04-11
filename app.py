@@ -2,56 +2,63 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 
-st.set_page_config(page_title="Zoeira GC", layout="centered")
+# Emojis disponíveis para reações
+emojis = ["♿", "😂", "💀", "👍", "🧠"]
+reactions = {emoji: 0 for emoji in emojis}  # contador de reações
 
-st.title("📊 Estatísticas de Jogador - Gamers Club")
-st.caption("Cole o link do jogador e veja os dados dele pra zoar no grupo 😎")
+# Aplica o estilo visual do Discord
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #2C2F33;
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-url_input = st.text_input("🔗 Link do perfil da Gamers Club:", "")
+# Título
+st.title("📊 Estatísticas GC - Zoação Mode 😎")
 
-def get_gc_stats(player_id):
-    url = f"https://gamersclub.com.br/player/{player_id}"
-    headers = {"User-Agent": "Mozilla/5.0"}
+# Perfil de exemplo (do seu amigo)
+player_url = "https://gamersclub.com.br/player/2399445"
 
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return None
+# Função para extrair nome e stats
+def pegar_estatisticas_gc(url):
+    res = requests.get(url)
+    soup = BeautifulSoup(res.text, 'html.parser')
 
-    soup = BeautifulSoup(response.text, 'html.parser')
+    nome = soup.find("h1").text.strip() if soup.find("h1") else "Desconhecido"
+    stats = soup.find_all("div", class_="general-stats__value")
 
     try:
-        nome = soup.select_one(".player-profile .name").text.strip()
-        nivel = soup.select_one(".level span").text.strip()
-        rating = soup.find("span", string="Rating").find_next("strong").text.strip()
-        kd = soup.find("span", string="K/D").find_next("strong").text.strip()
-        hs = soup.find("span", string="HS%").find_next("strong").text.strip()
-        partidas = soup.find("span", string="Partidas").find_next("strong").text.strip()
-        mapa_fav = soup.select_one(".favorite-map .map-name").text.strip()
-
-        stats = {
-            "Nome": nome,
-            "Nível": nivel,
-            "Rating": rating,
-            "K/D": kd,
-            "HS%": hs,
-            "Partidas": partidas,
-            "Mapa favorito": mapa_fav
-        }
-
-        return stats
-    
-    except Exception as e:
-        return None
-
-if url_input:
-    try:
-        player_id = url_input.strip("/").split("/")[-1]
-        stats = get_gc_stats(player_id)
-        if stats:
-            st.success(f"🎯 Estatísticas de {stats['Nome']}")
-            for chave, valor in stats.items():
-                st.write(f"**{chave}**: {valor}")
-        else:
-            st.error("⚠️ Não foi possível pegar os dados. Confere o link.")
+        kd = stats[0].text.strip()
+        hs = stats[1].text.strip()
+        win_rate = stats[2].text.strip()
     except:
-        st.error("⚠️ Link inválido.")
+        kd = hs = win_rate = "?"
+
+    return nome, kd, hs, win_rate
+
+# Pegando dados reais do site
+nome, kd, hs, win_rate = pegar_estatisticas_gc(player_url)
+
+st.subheader(f"👤 Jogador: {nome}")
+
+# Mostrando estatísticas
+st.write(f"**K/D:** {kd}")
+st.write(f"**Headshot %:** {hs}")
+st.write(f"**Winrate:** {win_rate}")
+
+st.divider()
+st.markdown("### Reações da galera (anônimas):")
+
+# Mostrar botões de reação
+cols = st.columns(len(emojis))
+for i, emoji in enumerate(emojis):
+    if cols[i].button(emoji):
+        reactions[emoji] += 1
+
+# Mostrar emojis acumulando (zoação)
+st.markdown("### Reações acumuladas:")
+for emoji in emojis:
+    st.markdown(f"**{emoji}** " + (emoji + " ") * reactions[emoji])
