@@ -6,6 +6,7 @@ import os
 import re
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -40,7 +41,9 @@ def iniciar_driver():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--remote-debugging-pipe")
-    driver = webdriver.Chrome(executable_path="./chromedriver", options=chrome_options)
+    
+    service = Service("./chromedriver")
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
 def buscar_perfil(link):
