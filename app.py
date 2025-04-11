@@ -1,31 +1,39 @@
 import streamlit as st
-import undetected_chromedriver as uc
+from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
-
-driver = webdriver.Chrome(service=Service(), options=chrome_options)
 from bs4 import BeautifulSoup
-
 import os
 import time
 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="wide", page_icon="🎯")
 
+# Estilo da HUD (tema escuro tipo Discord)
 st.markdown(
     """
     <style>
     body {
         background-color: #2c2f33;
         color: white;
+    }
+    .main {
+        background-color: #2c2f33;
+        color: white;
+    }
+    .stButton>button {
+        background-color: #7289da;
+        color: white;
+        font-weight: bold;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+    }
+    .stMetric {
+        background-color: #23272a;
+        border-radius: 12px;
+        padding: 10px;
     }
     .emoji {
         font-size: 1.5rem;
@@ -50,19 +58,12 @@ def buscar_perfil(url):
     try:
         st.info("⏳ Carregando perfil...")
 
-        # Força o uso de uma versão específica do ChromeDriver
-        driver_path = os.path.join(os.getcwd(), "chromedriver")  # Caminho local (ajuste se necessário)
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
 
-        options = uc.ChromeOptions()
-        options.add_argument("--headless=new")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--no-sandbox")
-
-        driver = uc.Chrome(
-            options=options,
-            version_main=120,  # Especifica o major version
-            driver_executable_path=driver_path  # Aponta pra um driver compatível com Chrome 120
-        )
+        driver = webdriver.Chrome(service=Service(), options=chrome_options)
 
         driver.get(url)
 
