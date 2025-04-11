@@ -10,7 +10,6 @@ import os
 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="wide", page_icon="🎯")
 
-# Estilo dark com fundo Discord
 st.markdown("""
     <style>
     body { background-color: #2c2f33; color: white; }
@@ -33,39 +32,50 @@ def buscar_perfil(url):
 
     try:
         chrome_options = Options()
-        chrome_options.add_argument("--headless=new")  # Usar nova engine headless
+        # ⚠️ NÃO usar headless aqui pra evitar erros com Cloudflare/JS
+        chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.binary_location = "/usr/bin/chromium"  # para ambientes como Streamlit Cloud
 
-        service = Service()  # Selenium Manager resolve o ChromeDriver automaticamente
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        # 🚨 Corrigir caminho do Chrome se necessário
+        chrome_path = "/usr/bin/google-chrome"
+        if not os.path.exists(chrome_path):
+            chrome_path = "/usr/bin/chromium"  # Alternativa
+        chrome_options.binary_location = chrome_path
 
+        driver = webdriver.Chrome(service=Service(), options=chrome_options)
         driver.get(url)
 
         WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "nickname"))
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
         )
 
         html = driver.page_source
+        with open("perfil_debug.html", "w", encoding="utf-8") as f:
+            f.write(html)
+
         driver.quit()
         return html
 
     except Exception as e:
+        # Salva o HTML mesmo se der erro
         try:
-            with open("erro_debug.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
+            html = driver.page_source
+            with open("perfil_debug.html", "w", encoding="utf-8") as f:
+                f.write(html)
         except:
             pass
-        st.error("❌ Não foi possível carregar o perfil: elemento não encontrado após 20 segundos.")
+        st.error("❌ Não foi possível carregar o perfil.")
         raise e
 
 def extrair_stats(html):
     soup = BeautifulSoup(html, "html.parser")
 
     nickname = soup.find("h1", class_="nickname")
+    if not nickname:
+        nickname = soup.find("div", string=lambda t: t and "Perfil de" in t)
+
     nome = nickname.text.strip() if nickname else "Desconhecido"
 
     stats = soup.find_all("div", class_="player-stats__value")
@@ -99,3 +109,4 @@ if url:
 
     except Exception as e:
         st.error(f"Erro inesperado: {e}")
+        st.warning("💡 Verifique o arquivo `perfil_debug.html` salvo no seu diretório.")
