@@ -1,13 +1,15 @@
 import streamlit as st
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
 import time
 import random
+import os
 
+# Corrigir path no Streamlit Cloud
+os.environ["PATH"] += os.pathsep + "/usr/lib/chromium-browser/"
+ 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
 
 # Fundo estilo Discord
@@ -44,22 +46,17 @@ if "reactions_por_stat" not in st.session_state:
     }
 
 # Carregar imagem do botão zoeira
-try:
-    zoeira_img = Image.open("image.png")
-except FileNotFoundError:
-    st.warning("Imagem image.png não encontrada. Coloque no mesmo diretório do app.")
+zoeira_img = Image.open("image.png")
 
 def pegar_estatisticas_gc(player_id):
-    # Configura o Selenium em modo headless
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-
     try:
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.binary_location = "/usr/lib/chromium-browser/chromium-browser"
+
+        driver = webdriver.Chrome(options=options)
         url = f"https://gamersclub.com.br/player/{player_id}"
         driver.get(url)
         time.sleep(3)
@@ -67,35 +64,41 @@ def pegar_estatisticas_gc(player_id):
         stats = {}
 
         try:
-            stats["Nome"] = driver.find_element(By.TAG_NAME, "h1").text
+            stats["Nome"] = driver.find_element(By.TAG_NAME, "h1").text.strip()
         except:
             stats["Nome"] = "Desconhecido"
 
         try:
-            stats["Nível"] = driver.find_element(By.CLASS_NAME, "level").text
+            stats["Nível"] = driver.find_element(By.CLASS_NAME, "level").text.strip()
         except:
             stats["Nível"] = "?"
 
-        def extrair_stat(titulo):
-            try:
-                elemento = driver.find_element(By.XPATH, f"//span[text()='{titulo}']/following-sibling::strong")
-                return elemento.text
-            except:
-                return "?"
+        try:
+            stats["K/D"] = driver.find_element(By.XPATH, "//span[contains(text(),'K/D')]/following-sibling::strong").text.strip()
+        except:
+            stats["K/D"] = "?"
 
-        stats["K/D"] = extrair_stat("K/D")
-        stats["HS %"] = extrair_stat("HS") + "%"
-        stats["Partidas"] = extrair_stat("Partidas")
+        try:
+            stats["HS %"] = driver.find_element(By.XPATH, "//span[contains(text(),'HS')]/following-sibling::strong").text.strip()
+        except:
+            stats["HS %"] = "?"
 
-        return stats
+        try:
+            stats["Partidas"] = driver.find_element(By.XPATH, "//span[contains(text(),'Partidas')]/following-sibling::strong").text.strip()
+        except:
+            stats["Partidas"] = "?"
 
-    finally:
         driver.quit()
+        return stats
+    except Exception as e:
+        return f"Erro ao carregar perfil: {e}"
 
 if st.button("🔍 Buscar estatísticas"):
-    try:
-        stats = pegar_estatisticas_gc(player_id)
+    stats = pegar_estatisticas_gc(player_id)
 
+    if isinstance(stats, str):
+        st.error(stats)
+    else:
         st.markdown(f"## 👤 {stats['Nome']}")
         st.markdown(f"**Nível:** {stats['Nível']}")
         st.divider()
@@ -107,8 +110,7 @@ if st.button("🔍 Buscar estatísticas"):
             with cols[1]:
                 if st.button(f"Zoeira {stat}", key=stat):
                     st.session_state.reactions_por_stat[stat] += 1
-                if 'zoeira_img' in locals():
-                    st.image(zoeira_img, use_container_width=True)
+                st.image(zoeira_img, use_container_width=True)
 
         st.divider()
 
@@ -128,6 +130,3 @@ if st.button("🔍 Buscar estatísticas"):
 
         for stat, count in st.session_state.reactions_por_stat.items():
             st.markdown(f"**{stat}**: {count} zoeiras")
-
-    except Exception as e:
-        st.error(f"Erro ao carregar perfil: {e}")
