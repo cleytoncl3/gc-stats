@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import re
 import random
 from PIL import Image
+from pathlib import Path
 
 st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
 
@@ -40,12 +41,26 @@ if "reactions_por_stat" not in st.session_state:
         "Partidas": 0
     }
 
-# Carregar imagem do botão zoeira
-zoeira_img = Image.open("image.png")
+# Caminho seguro da imagem
+image_path = Path(__file__).parent / "image.png"
+zoeira_img = Image.open(image_path)
 
 def pegar_estatisticas_gc(player_id):
     url = f"https://gamersclub.com.br/player/{player_id}"
-    res = requests.get(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+    res = requests.get(url, headers=headers)
+
+    if res.status_code != 200:
+        return {
+            "Nome": "Erro ao acessar perfil",
+            "Nível": "?",
+            "K/D": "?",
+            "HS %": "?",
+            "Partidas": "?"
+        }
+
     soup = BeautifulSoup(res.text, 'html.parser')
 
     stats = {}
