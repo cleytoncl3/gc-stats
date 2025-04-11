@@ -1,108 +1,77 @@
 import streamlit as st
-import zipfile
-import os
-import requests
-import shutil
-import subprocess
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from bs4 import BeautifulSoup
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+import time
+import os
+import zipfile
+import requests
+import re
+
+CHROMEDRIVER_VERSION = "120.0.6099.71"
+CHROMEDRIVER_URL = f"https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/{CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip"
+CHROMEDRIVER_ZIP_PATH = "chromedriver.zip"
+CHROMEDRIVER_EXTRACTED_FOLDER = "chromedriver-linux64"
+CHROMEDRIVER_BINARY = os.path.join(CHROMEDRIVER_EXTRACTED_FOLDER, "chromedriver")
 
 def install_chromedriver():
+    if os.path.exists(CHROMEDRIVER_BINARY):
+        return
     try:
-        # Pega a versão completa do Chromium instalado
-        version_output = subprocess.check_output(["chromium", "--version"]).decode("utf-8")
-        full_version = version_output.strip().split(" ")[1]  # Ex: 120.0.6099.224
-
-        # Busca a versão compatível exata do ChromeDriver
-        response = requests.get(f"https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json")
-        data = response.json()
-
-        if full_version.split('.')[0] not in data['channels']['Stable']['version']:
-            raise Exception("Versão do ChromeDriver compatível não encontrada")
-
-        stable_data = data['channels']['Stable']
-        driver_version = stable_data["version"]
-        download_info = next(
-            (item for item in stable_data["downloads"]["chromedriver"] if item["platform"] == "linux64"),
-            None
-        )
-
-        if not download_info:
-            raise Exception("Download para Linux não encontrado.")
-
-        zip_url = download_info["url"]
-
-        # Baixa o ZIP
-        zip_path = "chromedriver.zip"
-        with requests.get(zip_url, stream=True) as r:
-            r.raise_for_status()
-            with open(zip_path, "wb") as f:
-                shutil.copyfileobj(r.raw, f)
-
-        if not zipfile.is_zipfile(zip_path):
-            raise Exception("Erro ao baixar o ChromeDriver. Arquivo não é um ZIP válido.")
-
-        # Extrai e renomeia o binário
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall()
-        os.remove(zip_path)
-
-        # Mover o chromedriver certo
-        for root, dirs, files in os.walk("."):
-            for file in files:
-                if file == "chromedriver":
-                    src = os.path.join(root, file)
-                    shutil.move(src, "./chromedriver")
-                    os.chmod("./chromedriver", 0o755)
-                    return
-
-        raise Exception("ChromeDriver não encontrado após extração.")
-
+        r = requests.get(CHROMEDRIVER_URL)
+        r.raise_for_status()
+        with open(CHROMEDRIVER_ZIP_PATH, "wb") as f:
+            f.write(r.content)
+        with zipfile.ZipFile(CHROMEDRIVER_ZIP_PATH, "r") as zip_ref:
+            zip_ref.extractall(".")
+        os.remove(CHROMEDRIVER_ZIP_PATH)
     except Exception as e:
         raise RuntimeError(f"Erro ao baixar o ChromeDriver: {e}")
 
-def carregar_perfil(perfil_id):
+def start_browser():
+    install_chromedriver()
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.binary_location = "/usr/bin/chromium"
+
+    service = Service(CHROMEDRIVER_BINARY)
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+def extrair_stats(url):
     try:
-        install_chromedriver()
+        driver = start_browser()
+        profile_url = f"https://gamersclub.gg/player/{url}"
+        driver.get(profile_url)
+        time.sleep(5)
 
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.binary_location = "/usr/bin/chromium"
-
-        service = Service("./chromedriver")
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-
-        url = f"https://gamersclub.gg/player/{perfil_id}"
-        driver.get(url)
-
-        soup = BeautifulSoup(driver.page_source, "html.parser")
-        nome = soup.select_one("h1")
+        html = driver.page_source
+        stats = {}
+        padrao = r'{"label":"(.*?)","value":"(.*?)"}'
+        matches = re.findall(padrao, html)
+        for label, value in matches:
+            stats[label] = value
         driver.quit()
-
-        if not nome:
-            return None
-
-        return nome.text.strip()
-
+        return stats
     except Exception as e:
-        raise RuntimeError(f"Erro ao carregar perfil: {e}")
+        return {"erro": str(e)}
 
-# --- Interface Streamlit ---
-st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
-st.markdown("<h1 style='color:#f04;'>🎯 GC Stats do Vintorez</h1>", unsafe_allow_html=True)
-st.write("Cole o link do perfil da **GamersClub**:")
+# Interface Streamlit
+st.set_page_config(page_title="GC Stats do Vintorez", layout="centered", page_icon="🎯")
 
-input_url = st.text_input("URL do perfil", placeholder="Ex: 2399445")
-if input_url:
-    try:
-        resultado = carregar_perfil(input_url)
-        if resultado:
-            st.success(f"Nome do jogador: {resultado}")
-        else:
-            st.error("Perfil não encontrado.")
-    except Exception as erro:
-        st.error(f"Erro ao carregar perfil: {erro}")
+st.markdown("<h1 style='text-align: center;'>🎯 GC Stats do Vintorez</h1>", unsafe_allow_html=True)
+st.markdown("Cole o link do perfil da **GamersClub**:")
+
+url_input = st.text_input("URL do perfil", placeholder="Ex: 2399445")
+if url_input:
+    with st.spinner("Buscando stats..."):
+        stats = extrair_stats(url_input)
+    if "erro" in stats:
+        st.error(f"Erro ao carregar perfil: {stats['erro']}")
+    else:
+        st.success("Stats encontrados!")
+        for k, v in stats.items():
+            st.markdown(f"**{k}:** {v}")
