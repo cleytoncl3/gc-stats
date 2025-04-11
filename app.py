@@ -1,79 +1,86 @@
 import streamlit as st
+import zipfile
+import os
+import requests
+import shutil
+import subprocess
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-import time
-import os
-import zipfile
-import requests
+from bs4 import BeautifulSoup
 
 def install_chromedriver():
-    url = "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.224/linux64/chromedriver-linux64.zip"
-    
-    response = requests.get(url)
-    if response.status_code != 200 or not response.content.startswith(b'PK'):
-        raise Exception("Erro ao baixar o ChromeDriver. Arquivo não é um ZIP válido.")
-    
-    with open("chromedriver.zip", "wb") as f:
-        f.write(response.content)
-    
-    with zipfile.ZipFile("chromedriver.zip", "r") as zip_ref:
-        zip_ref.extractall(".")
-    
-    os.chmod("chromedriver-linux64/chromedriver", 0o755)
-    os.environ["PATH"] += os.pathsep + os.path.abspath("chromedriver-linux64")
-
-def setup_driver():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.binary_location = "/usr/bin/chromium"
-
-    driver_path = os.path.abspath("chromedriver-linux64/chromedriver")
-    service = Service(driver_path)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    return driver
-
-def get_player_stats(profile_url):
-    driver = setup_driver()
     try:
-        driver.get(profile_url)
-        time.sleep(5)
+        # Descobre a versão do Chromium instalada
+        version_output = subprocess.check_output(["chromium", "--version"]).decode("utf-8")
+        version_number = version_output.strip().split(" ")[1].split(".")[0]
 
-        stats = {
-            "Nome": driver.find_element(By.CLASS_NAME, "name").text,
-            "Level": driver.find_element(By.CLASS_NAME, "level").text,
-            "Elo": driver.find_element(By.CLASS_NAME, "elo").text
-        }
+        # Monta URL do ChromeDriver correspondente
+        response = requests.get(f"https://chromedriver.storage.googleapis.com/LATEST_RELEASE_{version_number}")
+        driver_version = response.text.strip()
+        zip_url = f"https://chromedriver.storage.googleapis.com/{driver_version}/chromedriver_linux64.zip"
 
-        return stats
-    finally:
-        driver.quit()
+        # Faz o download
+        zip_path = "chromedriver.zip"
+        with requests.get(zip_url, stream=True) as r:
+            r.raise_for_status()
+            with open(zip_path, "wb") as f:
+                shutil.copyfileobj(r.raw, f)
 
-# ========== Streamlit UI ==========
-st.set_page_config(page_title="GC Stats do Vintorez", layout="wide", page_icon="🎯")
+        # Verifica se é um ZIP válido antes de extrair
+        if not zipfile.is_zipfile(zip_path):
+            raise Exception("Erro ao baixar o ChromeDriver. Arquivo não é um ZIP válido.")
 
-st.markdown("""
-    <style>
-    body {
-        background-color: #2c2f33;
-        color: white;
-    }
-    </style>
-""", unsafe_allow_html=True)
+        # Extrai
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall()
 
-st.title("🎯 GC Stats do Vintorez")
-st.markdown("Cole o link do perfil da **GamersClub**:")
+        os.remove(zip_path)
+        os.chmod("chromedriver", 0o755)
 
-url = st.text_input("URL do perfil")
+    except Exception as e:
+        raise RuntimeError(f"Erro ao baixar o ChromeDriver: {e}")
 
-if url:
+def carregar_perfil(perfil_id):
     try:
         install_chromedriver()
-        stats = get_player_stats(url)
-        st.success("Estatísticas carregadas com sucesso!")
-        st.json(stats)
+
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.binary_location = "/usr/bin/chromium"
+
+        service = Service("./chromedriver")
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        url = f"https://gamersclub.gg/player/{perfil_id}"
+        driver.get(url)
+
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        nome = soup.select_one("h1")
+        driver.quit()
+
+        if not nome:
+            return None
+
+        return nome.text.strip()
+
     except Exception as e:
-        st.error(f"Erro ao carregar perfil: {e}")
+        raise RuntimeError(f"Erro ao carregar perfil: {e}")
+
+# --- Interface Streamlit ---
+st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
+st.markdown("<h1 style='color:#f04;'>🎯 GC Stats do Vintorez</h1>", unsafe_allow_html=True)
+st.write("Cole o link do perfil da **GamersClub**:")
+
+input_url = st.text_input("URL do perfil", placeholder="Ex: 2399445")
+if input_url:
+    try:
+        resultado = carregar_perfil(input_url)
+        if resultado:
+            st.success(f"Nome do jogador: {resultado}")
+        else:
+            st.error("Perfil não encontrado.")
+    except Exception as erro:
+        st.error(f"Erro ao carregar perfil: {erro}")
