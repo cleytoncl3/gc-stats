@@ -81,7 +81,7 @@ if st.button("🔍 Buscar estatísticas"):
         with cols[1]:
             if st.button(f"Zoeira {stat}", key=stat):
                 st.session_state.reactions_por_stat[stat] += 1
-            st.image(zoeira_img, width=32, use_column_width=False)
+            st.image(zoeira_img, use_container_width=True)
 
     st.divider()
 
