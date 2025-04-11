@@ -1,1 +1,2 @@
-
+# Pacotes necessários pro chromedriver funcionar
+chromium
