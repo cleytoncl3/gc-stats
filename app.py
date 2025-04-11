@@ -1,115 +1,119 @@
 import streamlit as st
-import time
-import zipfile
-import requests
-import os
-import re
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
-from selenium.common.exceptions import TimeoutException
+import time
+import re
 
-CHROMEDRIVER_VERSION = "120.0.6099.71"
-CHROMEDRIVER_URL = f"https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/{CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip"
+st.set_page_config(page_title="GC Stats do Vintorez", layout="centered")
 
-def install_chromedriver():
-    if not os.path.exists("chromedriver"):
-        try:
-            r = requests.get(CHROMEDRIVER_URL)
-            r.raise_for_status()
-            with open("chromedriver.zip", "wb") as f:
-                f.write(r.content)
-            with zipfile.ZipFile("chromedriver.zip", "r") as zip_ref:
-                zip_ref.extractall()
-            os.rename("chromedriver-linux64/chromedriver", "chromedriver")
-            os.chmod("chromedriver", 0o755)
-        except Exception as e:
-            st.error(f"Erro ao baixar o ChromeDriver: {e}")
-            raise
+st.markdown(
+    """
+    <style>
+    body {
+        background-color: #2f3136;
+        color: white;
+    }
+    .emoji {
+        font-size: 24px;
+        margin-right: 5px;
+        cursor: pointer;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.title("GC Stats do Vintorez 😎")
+st.write("Cole o link do perfil da **GamersClub** de um amigo para ver as estatísticas dele e reagir com zoeira.")
+
+REACTIONS = ["♿", "👍", "😂", "💀", "🧠"]
+
+reaction_state = {r: 0 for r in REACTIONS}
 
 def iniciar_driver():
-    install_chromedriver()
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--remote-debugging-pipe")
-    
-    service = Service("./chromedriver")
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    options = uc.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--lang=pt-BR")
+
+    driver = uc.Chrome(options=options, headless=True)
     return driver
 
 def buscar_perfil(link):
     if not link.startswith("https://"):
         raise ValueError("URL inválida. Certifique-se de colar o link completo com https://")
+
     driver = iniciar_driver()
+
     try:
         driver.get(link)
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.CLASS_NAME, "player-general-info"))
         )
+        time.sleep(2)
+
         html = driver.page_source
-        driver.quit()
         return html
-    except TimeoutException:
-        st.error("❌ Não foi possível carregar o perfil: elemento não encontrado após 20 segundos.")
-        html = driver.page_source
-        driver.quit()
-        st.text("⛔ Parte do HTML carregado (para debug):")
-        st.code(html[:1000])
-        raise
+
     except Exception as e:
+        html_debug = driver.page_source[:1000]
+        st.error("❌ Não foi possível carregar o perfil: elemento não encontrado após 20 segundos.")
+        st.write("⛔ Parte do HTML carregado (para debug):")
+        st.code(html_debug)
+        raise Exception(f"Erro inesperado: {str(e)}")
+
+    finally:
         driver.quit()
-        raise e
 
-def extrair_stats(html):
+def extrair_estatisticas(html):
     soup = BeautifulSoup(html, "html.parser")
-    stats = {}
-    geral = soup.select_one(".player-general-info")
-    if geral:
-        stats["nome"] = geral.select_one(".player-info__name").text.strip()
-        stats["elo"] = geral.select_one(".player-info__level").text.strip()
-    return stats
+    info = soup.find("div", class_="player-general-info")
 
-def main():
-    st.set_page_config(page_title="GC Stats do Vintorez", page_icon="🧠", layout="wide")
-    st.markdown(
-        """
-        <h1 style='color: #7289da;'>GC Stats do Vintorez</h1>
-        <p style='color: white;'>Cole o link do perfil da GamersClub para ver as estatísticas e reagir zoando com os amigos.</p>
-        """,
-        unsafe_allow_html=True
-    )
+    if not info:
+        raise ValueError("Não foi possível encontrar as informações do jogador.")
 
-    link = st.text_input("Link do perfil (cole aqui):")
+    nome = info.find("h1").text.strip()
+    detalhes = info.find_all("p")
 
-    if st.button("Buscar perfil"):
-        try:
-            html = buscar_perfil(link)
-            stats = extrair_stats(html)
-            st.subheader(f"📊 Estatísticas de {stats.get('nome', 'Desconhecido')}")
-            st.markdown(f"**Elo:** {stats.get('elo', 'N/A')}")
+    estatisticas = {
+        "Nome": nome,
+        "Rank": detalhes[0].text.strip() if len(detalhes) > 0 else "N/A",
+        "Level": detalhes[1].text.strip() if len(detalhes) > 1 else "N/A",
+        "Pontos": detalhes[2].text.strip() if len(detalhes) > 2 else "N/A",
+    }
 
-            st.markdown("---")
-            st.markdown("### 😆 Reações")
-            col1, col2, col3, col4, col5 = st.columns(5)
-            with col1: st.button("♿", key="r1")
-            with col2: st.button("👍", key="r2")
-            with col3: st.button("😂", key="r3")
-            with col4: st.button("💀", key="r4")
-            with col5: st.button("🧠", key="r5")
+    return estatisticas
 
-        except ValueError as ve:
-            st.error(f"Erro ao carregar perfil: {ve}")
-        except Exception as e:
-            st.error(f"Erro inesperado: {e}")
+link = st.text_input("🔗 Cole o link do perfil GC aqui:")
 
-if __name__ == "__main__":
-    main()
+if link:
+    if st.button("🔍 Buscar"):
+        with st.spinner("Carregando perfil..."):
+            try:
+                html = buscar_perfil(link)
+                stats = extrair_estatisticas(html)
+
+                st.subheader(f"📊 Estatísticas de {stats['Nome']}")
+                st.markdown(f"**Rank:** {stats['Rank']}")
+                st.markdown(f"**Level:** {stats['Level']}")
+                st.markdown(f"**Pontos:** {stats['Pontos']}")
+
+                st.markdown("---")
+                st.subheader("Reaja com zoeira 👇")
+
+                cols = st.columns(len(REACTIONS))
+                for i, emoji in enumerate(REACTIONS):
+                    if cols[i].button(emoji):
+                        reaction_state[emoji] += 1
+
+                st.markdown("### Reações:")
+                for emoji in REACTIONS:
+                    st.markdown(f"{emoji} × {reaction_state[emoji]}", unsafe_allow_html=True)
+
+            except Exception as e:
+                st.error(f"Erro ao carregar perfil.\n\n{str(e)}")
